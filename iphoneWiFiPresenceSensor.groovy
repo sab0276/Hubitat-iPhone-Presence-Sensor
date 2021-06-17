@@ -16,13 +16,19 @@
  *  v1.01:  Fixed a bug that could happen if a user updated from an older version of the code, but didn't click "Save Preferences".
  */
 
+/*Scott Barton added the ability to turn it on and off manually (switch capability) as well as auto-turn off (this acts as an auto-update if they are still connected).  
+Use this to control a Virtual Presence Sensor using my Virtual Switch Universal Device Type uDTH and select Presence Sensor in Preferences.
+https://github.com/sab0276/Hubitat/blob/main/virtualSwitchUDTH.groovy
+*/
+
 import groovy.json.*
 	
 metadata {
-	definition (name: "iPhone WiFi Presence Sensor", namespace: "joelwetzel", author: "Joel Wetzel") {
+	definition (name: "WiFi Presence Sensor", namespace: "joelwetzel", author: "Joel Wetzel") {
 		capability "Refresh"
 		capability "Sensor"
-        capability "Presence Sensor"
+        	capability "Presence Sensor"
+        	capability "Switch"        
 	}
 
 	preferences {
@@ -48,13 +54,21 @@ metadata {
 				required: true,
 				defaultValue: true
 			)
-            input (
+            		input (
 				type: "bool",
 				name: "enableDevice",
 				title: "Enable Device?",
 				required: true,
 				defaultValue: true
 			)
+            		input (
+             		   name: "autoOff", 
+             		   type: "enum", 
+             		   description: "", 
+                	   title: "Enable auto off", 
+                	   options: [[0:"Disabled"],[1:"1m"],[2:"2m"],[3:"3m"], [5:"5m"],[10:"10m"],[15:"15m"], [20:"20m"],[30:"30m"],[60:"1h"],[120:"2h"]],
+               		   defaultValue: 0
+            		)
 		}
 	}
 }
@@ -98,6 +112,18 @@ def ensureStateVariables() {
     }
 }
 
+def off() {
+    sendEvent(name: "switch", value: "off")
+    sendEvent(name: "presence", value: "not present")
+}
+
+def on() {
+    sendEvent(name: "switch", value: "on")
+    sendEvent(name: "presence", value: "present")
+    if (autoOff.toInteger()>0){
+        runIn(autoOff.toInteger()*60, off)
+    }
+}
 
 def refresh() {
 	log "${device.displayName}.refresh()"
@@ -110,6 +136,7 @@ def refresh() {
         def descriptionText = "${device.displayName} is OFFLINE";
         log descriptionText
         sendEvent(name: "presence", value: "not present", linkText: deviceName, descriptionText: descriptionText)
+        sendEvent(name: "switch", value: "off")
     }
     
 	if (ipAddress == null || ipAddress.size() == 0) {
@@ -134,6 +161,10 @@ def httpGetCallback(response, data) {
 			def descriptionText = "${device.displayName} is ONLINE";
 			log descriptionText
 			sendEvent(name: "presence", value: "present", linkText: deviceName, descriptionText: descriptionText)
+            sendEvent(name: "switch", value: "on")
+            if (autoOff.toInteger()>0){
+                runIn(autoOff.toInteger()*60, off)
+            }
 		}
 	}
     else {
@@ -141,6 +172,3 @@ def httpGetCallback(response, data) {
 
     }
 }
-
-
-
